@@ -4,6 +4,7 @@ import datetime
 from zoneinfo import ZoneInfo
 import threading
 import requests
+import time
 
 # ==========================================
 # 1. ระบบ Log และ Tracking (เข้า-ออก และ IP)
@@ -55,24 +56,21 @@ if 'monitor' not in st.session_state:
     st.session_state.monitor = SessionMonitor(global_tracker, user_ip)
 
 # ==========================================
-# 2. การตั้งค่าหน้าจอและ CSS (ซ้ายดำ-บนขาว)
+# 2. การตั้งค่าหน้าจอและ CSS
 # ==========================================
 st.set_page_config(page_title="Maths Studio", page_icon="🔢", layout="wide")
 
 st.markdown("""
 <style>
     .stApp { background-color: #f8f9fa; }
-    /* ส่วนหัวด้านบน (CRMS6) - สีขาว */
     .school-title { 
         position: fixed; top: 14px; left: 50%; transform: translateX(-50%); 
         z-index: 999999; font-size: 26px; font-weight: 800; 
         color: #FFFFFF !important; pointer-events: none; 
     }
-    /* Sidebar - ตัวหนังสือสีดำเข้ม */
     [data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
     [data-testid="stSidebar"] * { color: #000000 !important; }
     
-    /* กล่อง IP ปรับปรุงใหม่ */
     .ip-box { 
         background-color: #f0f2f6; 
         padding: 12px; 
@@ -86,13 +84,9 @@ st.markdown("""
 <div class="school-title">CRMS6</div>
 """, unsafe_allow_html=True)
 
-with st.sidebar:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2: st.image("IMAGE/logo_CRMS6.png", use_container_width=True)
-    
-    st.header("🔢 Maths Studio")
-    
-    # แก้ไขส่วน IP ของคุณให้เป็นแนวนอน
+# ฟังก์ชันพิเศษสำหรับการอัปเดตเฉพาะส่วน (ทุก 3 วินาที)
+@st.fragment(run_every=3)
+def sync_active_users():
     st.markdown(f"""
     <div class="ip-box">
         <div style="font-size: 0.9rem; margin-bottom: 5px;">
@@ -104,29 +98,35 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+with st.sidebar:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2: 
+        try: st.image("IMAGE/logo_CRMS6.png", use_container_width=True)
+        except: st.write("🏫")
+    
+    st.header("🔢 Maths Studio")
+    
+    # เรียกใช้ฟังก์ชันอัปเดตอัตโนมัติที่นี่
+    sync_active_users()
+
     grid_choice = st.radio("เลือกขนาดตาราง:",["2x2 (Basic)", "3x3 (Standard)", "4x4 (Advanced)", "5x5 (Expert)"], index=0)
     st.markdown("---")
     st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพหุนามลงในช่องสีขาว ผลลัพธ์จะคำนวณอัตโนมัติ")
 
 # ==========================================
-# 3. กำหนดขนาดและเส้น (Cross Style)
+# 3. ส่วนการคำนวณตาราง (HTML/JS คงเดิม)
 # ==========================================
 size = int(grid_choice.split("x")[0])
 
 vlines = "".join([f'<div class="line vline" style="left: {80 + (i * 100)}px;"></div>' for i in range(size)])
 hlines = "".join([f'<div class="line hline" style="top: {80 + (i * 100)}px;"></div>' for i in range(size)])
-
 top_inputs = "".join([f'<div class="input-cell"><input id="top{i}" class="gamebox" placeholder="T{i+1}" autocomplete="off"></div>' for i in range(size)])
-
 left_and_results = ""
 for j in range(size - 1, -1, -1):
     left_and_results += f'<div class="input-cell"><input id="left{j}" class="gamebox" placeholder="L{j+1}" autocomplete="off"></div>'
     for i in range(size):
         left_and_results += f'<div class="result-cell" id="res_{j}_{i}"></div>'
 
-# ==========================================
-# 4. HTML/JS
-# ==========================================
 html_code = f"""
 <!DOCTYPE html>
 <html>
@@ -135,16 +135,13 @@ html_code = f"""
         body {{ font-family: 'Sarabun', sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 30px; background: transparent; }}
         .app-container {{ background: #ffffff; padding: 50px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.06); position: relative; display: inline-block; }}
         .grid-wrapper {{ display: grid; grid-template-columns: 80px repeat({size}, 100px); grid-template-rows: 80px repeat({size}, 100px); position: relative; z-index: 2; }}
-        
         .input-cell {{ display: flex; justify-content: center; align-items: center; }}
         input.gamebox {{ width: 55px; height: 38px; text-align: center; border: 1px solid #ced4da; border-radius: 8px; font-weight: 600; outline: none; }}
         .result-cell {{ display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: 700; color: #dc3545; font-family: 'Roboto Mono', monospace; }}
-        
         .lines-container {{ position: absolute; top: 50px; left: 50px; right: 50px; bottom: 50px; pointer-events: none; z-index: 1; }}
         .line {{ position: absolute; background-color: #000; }}
         .vline {{ width: 2px; height: 100%; }}
         .hline {{ height: 2px; width: 100%; }}
-        
         #finalResultBox {{ margin-top: 60px; padding: 15px 40px; background: linear-gradient(135deg, #0d6efd, #0056b3); color: white; border-radius: 100px; font-size: 24px; font-weight: 600; display: none; text-align: center; }}
         sup {{ font-size: 0.65em; vertical-align: super; }}
     </style>
