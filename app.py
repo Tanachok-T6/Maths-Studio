@@ -3,41 +3,32 @@ import streamlit.components.v1 as components
 import datetime
 from zoneinfo import ZoneInfo
 import threading
+import requests # เพิ่มสำหรับดึง IP กรณี headers ปกติถูกปิดกั้น
 
 # ==========================================
 # 1. การตั้งค่าหน้าจอ (ต้องอยู่บรรทัดแรกเสมอ)
 # ==========================================
 st.set_page_config(page_title="Maths Studio", page_icon="🔢", layout="wide")
 
-# บังคับพื้นหลังให้เป็นแบบสว่าง และตั้งค่า Header (CSS)
-st.markdown("""
-<style>
-    .stApp, .stApp > header { background-color: #f8f9fa !important; }[data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
-    [data-testid="stSidebar"] * { color: #000000 !important; }
-    
-    .school-title { 
-        position: fixed; 
-        top: 14px; 
-        left: 50%; 
-        transform: translateX(-50%); 
-        z-index: 999999; 
-        font-size: 26px; 
-        font-weight: 800; 
-        color: var(--text-color) !important; 
-        pointer-events: none; 
-    }
-</style>
-<div class="school-title">CRMS6</div>
-""", unsafe_allow_html=True)
+# ฟังก์ชันดึง IP Address ของผู้ใช้งาน
+def get_user_ip():
+    # พยายามดึงจาก Header ของ Streamlit (ใช้ได้ดีบน Cloud/Proxies)
+    headers = st.context.headers
+    if "X-Forwarded-For" in headers:
+        return headers["X-Forwarded-For"].split(",")[0]
+    # ถ้าไม่ได้ ให้ใช้บริการภายนอกช่วย (fallback)
+    try:
+        return requests.get('https://api.ipify.org').text
+    except:
+        return "Unknown"
 
 # ==========================================
-# 2. ระบบ Log ตรวจจับคนเข้า-ออกเว็บ (Global State)
+# 2. ระบบ Log ตรวจจับคนเข้า-ออกเว็บ + IP
 # ==========================================
-# สร้างคลาสเก็บจำนวนคนออนไลน์ (แชร์กันทุกคน)
 class ActiveUserTracker:
     def __init__(self):
         self.active_users = 0
-        self.lock = threading.Lock() # ป้องกันการนับผิดพลาดเวลาคนเข้าพร้อมกัน
+        self.lock = threading.Lock()
 
     def add_user(self):
         with self.lock:
@@ -49,33 +40,31 @@ class ActiveUserTracker:
             self.active_users -= 1
             return self.active_users
 
-# ให้ Streamlit จดจำตัว Tracker นี้ไว้ใน Server ตลอดเวลา
 @st.cache_resource
 def get_tracker():
     return ActiveUserTracker()
 
-# สร้างคลาสที่จะผูกติดกับ Session ของผู้ใช้แต่ละคน
 class UserSession:
-    def __init__(self, tracker):
+    def __init__(self, tracker, ip):
         self.tracker = tracker
+        self.ip = ip
         current_users = self.tracker.add_user()
         now = datetime.datetime.now(ZoneInfo("Asia/Bangkok")).strftime('%H:%M:%S')
-        print(f"[{now}] 🟢 มีผู้เข้าชมใหม่! | ตอนนี้มีคนกำลังใช้งานอยู่ทั้งหมด: {current_users} คน")
+        # แจ้ง Log ใน Console/Server ว่า IP ไหนเข้ามา
+        print(f"[{now}] 🟢 IP: {self.ip} เข้าใช้งาน | ออนไลน์อยู่: {current_users} คน")
 
-    # ฟังก์ชันนี้จะทำงานอัตโนมัติเมื่อผู้ใช้ปิดหน้าเว็บหรือปิดแท็บ
     def __del__(self):
         current_users = self.tracker.remove_user()
-        # นำเข้าไลบรารีอีกครั้งภายใน __del__ เพื่อป้องกัน Error ตอนที่ Server ล้างหน่วยความจำ
         import datetime
         from zoneinfo import ZoneInfo
         now = datetime.datetime.now(ZoneInfo("Asia/Bangkok")).strftime('%H:%M:%S')
-        print(f"[{now}] 🔴 มีผู้ใช้ออกจากแอป! | ตอนนี้มีคนกำลังใช้งานอยู่ทั้งหมด: {current_users} คน")
+        print(f"[{now}] 🔴 IP: {self.ip} ออกจากแอป | ออนไลน์เหลือ: {current_users} คน")
 
 tracker = get_tracker()
+user_ip = get_user_ip() # ดึง IP ของเครื่องปัจจุบัน
 
-# ผูก UserSession เข้ากับผู้ใช้คนนี้ (ถ้าเพิ่งเข้ามาใหม่)
 if 'session_tracker' not in st.session_state:
-    st.session_state.session_tracker = UserSession(tracker)
+    st.session_state.session_tracker = UserSession(tracker, user_ip)
 
 # ==========================================
 # 3. แถบเครื่องมือด้านข้าง (Sidebar)
@@ -86,35 +75,46 @@ with st.sidebar:
         try:
             st.image("IMAGE/logo_CRMS6.png", use_container_width=True)
         except Exception:
-            pass # ข้ามไปหากไม่พบไฟล์รูปภาพ
+            pass
 
     st.header("🔢 Maths Studio")
+    # แสดง IP Address ที่ Sidebar ให้ผู้ใช้เห็น
+    st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #ddd;'>🌐 IP ของคุณ: <b>{user_ip}</b></div>", unsafe_allow_html=True)
+    st.write("")
+    
     grid_choice = st.radio(
         "เลือกขนาดตาราง:",["2x2 (Basic)", "3x3 (Standard)", "4x4 (Advanced)", "5x5 (Expert)"], 
         index=0
     )
     st.markdown("---")
-    st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพหุนาม (เช่น x, 2x^2) ลงในช่องสีขาวตามตัวเลขที่กำหนด ผลลัพธ์จะคำนวณและจัดกลุ่มให้อัตโนมัติ")
+    st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพพหุนามลงในช่องสีขาว ผลลัพธ์จะคำนวณและจัดกลุ่มให้อัตโนมัติ")
 
-# กำหนดขนาด size ตามตัวเลือก
+# ปรับแต่งพื้นหลังและ Title (CSS)
+st.markdown("""
+<style>
+    .stApp, .stApp > header { background-color: #f8f9fa !important; }
+    [data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
+    [data-testid="stSidebar"] * { color: #000000 !important; }
+    .school-title { 
+        position: fixed; top: 14px; left: 50%; transform: translateX(-50%); 
+        z-index: 999999; font-size: 26px; font-weight: 800; color: #333 !important; 
+        pointer-events: none; 
+    }
+</style>
+<div class="school-title">CRMS6</div>
+""", unsafe_allow_html=True)
+
+# (ส่วนที่ 4, 5 ของโค้ดเดิม คงที่ไว้ ไม่มีการเปลี่ยนแปลง)
 size = int(grid_choice.split("x")[0])
-
-# ==========================================
-# 4. สร้างองค์ประกอบ HTML (ตารางและเส้น)
-# ==========================================
 vlines = "".join([f'<div class="line vline" style="left: {80 + (i * 100)}px;"></div>' for i in range(size)])
 hlines = "".join([f'<div class="line hline" style="top: {80 + (i * 100)}px;"></div>' for i in range(size)])
 top_inputs = "".join([f'<div class="input-cell"><input id="top{i}" class="gamebox" placeholder="T{i+1}" autocomplete="off"></div>' for i in range(size)])
-
 left_and_results = ""
 for j in range(size - 1, -1, -1):
     left_and_results += f'<div class="input-cell"><input id="left{j}" class="gamebox" placeholder="L{j+1}" autocomplete="off"></div>'
     for i in range(size):
         left_and_results += f'<div class="result-cell" id="res_{j}_{i}"></div>'
 
-# ==========================================
-# 5. โค้ด HTML/CSS/JS (รองรับมือถือและ iPad)
-# ==========================================
 html_code = f"""
 <!DOCTYPE html>
 <html>
@@ -123,70 +123,19 @@ html_code = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body {{ 
-            font-family: 'Sarabun', sans-serif; 
-            margin: 0;
-            padding: 20px 0;
-            background: transparent;
-        }}
-        .scroll-wrapper {{
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            display: flex;
-            justify-content: center;
-            padding-bottom: 20px;
-        }}
-        .app-container {{ 
-            background: #ffffff; 
-            padding: 30px; 
-            border-radius: 24px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: max-content; 
-        }}
-        .grid-wrapper {{ 
-            display: grid; 
-            grid-template-columns: 80px repeat({size}, 100px); 
-            grid-template-rows: 80px repeat({size}, 100px); 
-            position: relative; 
-            z-index: 2; 
-        }}
-        .lines-container {{ 
-            position: absolute; 
-            top: 0; left: 0; right: 0; bottom: 0; 
-            pointer-events: none; 
-            z-index: 1; 
-        }}
+        body {{ font-family: 'Sarabun', sans-serif; margin: 0; padding: 20px 0; background: transparent; }}
+        .scroll-wrapper {{ width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; display: flex; justify-content: center; padding-bottom: 20px; }}
+        .app-container {{ background: #ffffff; padding: 30px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: inline-flex; flex-direction: column; align-items: center; min-width: max-content; }}
+        .grid-wrapper {{ display: grid; grid-template-columns: 80px repeat({size}, 100px); grid-template-rows: 80px repeat({size}, 100px); position: relative; z-index: 2; }}
+        .lines-container {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 1; }}
         .line {{ position: absolute; background-color: #000; }}
         .vline {{ width: 2px; top: 10px; bottom: 10px; }}
         .hline {{ height: 2px; left: 10px; right: 10px; }}
-        
-        .input-cell, .result-cell {{ 
-            display: flex; justify-content: center; align-items: center; z-index: 2;
-        }}
-        input.gamebox {{ 
-            width: 60px; height: 40px; text-align: center; 
-            border: 1px solid #ced4da; border-radius: 8px; 
-            font-family: 'Sarabun', sans-serif; font-weight: 600; 
-            font-size: 16px; 
-            outline: none; transition: all 0.2s ease; 
-        }}
-        input.gamebox:focus {{ 
-            border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,0.25); 
-        }}
-        .result-cell {{ 
-            font-size: 20px; font-weight: 700; color: #dc3545; font-family: 'Roboto Mono', monospace; 
-        }}
-        #finalResultBox {{ 
-            margin-top: 30px; padding: 15px 40px; 
-            background: linear-gradient(135deg, #0d6efd, #0056b3); color: white; 
-            border-radius: 100px; font-size: 24px; font-weight: 600; display: none; 
-            text-align: center; box-shadow: 0 5px 15px rgba(13,110,253,0.3);
-            word-break: break-all;
-        }}
+        .input-cell, .result-cell {{ display: flex; justify-content: center; align-items: center; z-index: 2; }}
+        input.gamebox {{ width: 60px; height: 40px; text-align: center; border: 1px solid #ced4da; border-radius: 8px; font-family: 'Sarabun', sans-serif; font-weight: 600; font-size: 16px; outline: none; transition: all 0.2s ease; }}
+        input.gamebox:focus {{ border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,0.25); }}
+        .result-cell {{ font-size: 20px; font-weight: 700; color: #dc3545; font-family: 'Roboto Mono', monospace; }}
+        #finalResultBox {{ margin-top: 30px; padding: 15px 40px; background: linear-gradient(135deg, #0d6efd, #0056b3); color: white; border-radius: 100px; font-size: 24px; font-weight: 600; display: none; text-align: center; box-shadow: 0 5px 15px rgba(13,110,253,0.3); word-break: break-all; }}
         sup {{ font-size: 0.65em; vertical-align: super; }}
     </style>
 </head>
@@ -202,7 +151,6 @@ html_code = f"""
             <div id="finalResultBox"></div>
         </div>
     </div>
-
 <script>
     const size = {size};
     function parse(s) {{ 
@@ -270,4 +218,4 @@ components.html(html_code, height=height_calc)
 time_placeholder = st.empty()
 bangkok_now = datetime.datetime.now(ZoneInfo("Asia/Bangkok"))
 time_str = bangkok_now.strftime('%d/%m/%Y %H:%M:%S')
-time_placeholder.markdown(f"<p style='text-align: center; color: gray;'>เวลาที่เข้าใช้งาน (TH): {time_str}</p>", unsafe_allow_html=True)
+time_placeholder.markdown(f"<p style='text-align: center; color: gray;'>เวลาปัจจุบัน: {time_str}</p>", unsafe_allow_html=True)
