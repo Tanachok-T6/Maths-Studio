@@ -70,16 +70,52 @@ with st.sidebar:
 # ==========================================
 st.markdown("""
 <style>
+    /* พื้นหลังหลัก */
     .stApp { background-color: #f8f9fa !important; }
-    [data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
+
+    /* --- ส่วนด้านบน (Header) --- */
     .school-title { 
-        position: fixed; top: 14px; left: 50%; transform: translateX(-50%); 
-        z-index: 999999; font-size: 26px; font-weight: 800; color: #333; pointer-events: none; 
+        position: fixed; 
+        top: 14px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        z-index: 999999; 
+        font-size: 26px; 
+        font-weight: 800; 
+        color: #FFFFFF !important; /* เปลี่ยนเป็นสีขาว */
+        pointer-events: none; 
+    }
+
+    /* --- ส่วนแถบด้านข้าง (Sidebar) --- */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        border-right: 1px solid #e0e0e0;
+    }
+
+    /* บังคับตัวหนังสือทุกอย่างใน Sidebar ให้เป็นสีดำ */
+    [data-testid="stSidebar"] .stMarkdown p, 
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] p {
+        color: #000000 !important;
+    }
+
+    /* บังคับสีปุ่ม Radio ให้เป็นสีดำ */
+    div[data-testid="stRadio"] label p {
+        color: #000000 !important;
+        font-weight: 500 !important;
+    }
+
+    /* ปรับแต่งความชัดเจนของ Logo และ Icon ใน Sidebar */
+    [data-testid="stSidebar"] img {
+        filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.1));
     }
 </style>
 <div class="school-title">CRMS6</div>
 """, unsafe_allow_html=True)
-
 # ==========================================
 # 5. โครงสร้างตารางคำนวณ (เหมือนเดิมเพื่อให้ระบบทำงานแม่นยำ)
 # ==========================================
