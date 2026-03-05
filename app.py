@@ -29,30 +29,27 @@ def get_global_tracker():
 
 def get_user_ip():
     try:
-        # พยายามดึงจาก Header (Cloud)
+        # พยายามดึงจาก Header (Streamlit Cloud)
         headers = st.context.headers
         if "X-Forwarded-For" in headers:
             return headers["X-Forwarded-For"].split(",")[0]
-        # Fallback ดึงจาก API ภายนอก
         return requests.get('https://api.ipify.org', timeout=5).text
     except:
         return "Unknown IP"
 
-# คลาสตรวจจับ Session (เมื่อคนปิดแถบ __del__ จะทำงานในบางกรณีบน Server)
 class SessionMonitor:
     def __init__(self, tracker, ip):
         self.tracker = tracker
         self.ip = ip
         self.start_time = datetime.datetime.now(ZoneInfo("Asia/Bangkok")).strftime('%H:%M:%S')
         count = self.tracker.increment()
-        print(f"🟢 [ENTRY] IP: {self.ip} | เวลา: {self.start_time} | ออนไลน์อยู่: {count} คน")
+        # แจ้ง Log ที่ Terminal Server
+        print(f"🟢 [ENTRY] IP: {self.ip} | เวลา: {self.start_time} | ออนไลน์: {count}")
 
     def __del__(self):
         count = self.tracker.decrement()
-        now = datetime.datetime.now(ZoneInfo("Asia/Bangkok")).strftime('%H:%M:%S')
-        print(f"🔴 [EXIT]  IP: {self.ip} | เวลา: {now} | ออนไลน์เหลือ: {count} คน")
+        print(f"🔴 [EXIT]  IP: {self.ip} | ออนไลน์เหลือ: {count}")
 
-# เรียกใช้งาน Tracker
 global_tracker = get_global_tracker()
 user_ip = get_user_ip()
 
@@ -60,20 +57,20 @@ if 'monitor' not in st.session_state:
     st.session_state.monitor = SessionMonitor(global_tracker, user_ip)
 
 # ==========================================
-# 2. การตั้งค่าหน้าจอและ UI
+# 2. การตั้งค่าหน้าจอและ CSS (ซ้ายดำ-บนขาว)
 # ==========================================
-st.set_page_config(page_title="Maths Studio Pro", page_icon="🔢", layout="wide")
+st.set_page_config(page_title="Maths Studio", page_icon="🔢", layout="wide")
 
 st.markdown("""
 <style>
     .stApp { background-color: #f8f9fa; }
-    /* ส่วนหัวด้านบน - ตัวหนังสือสีขาว */
+    /* ส่วนหัวด้านบน (CRMS6) - สีขาว */
     .school-title { 
         position: fixed; top: 14px; left: 50%; transform: translateX(-50%); 
         z-index: 999999; font-size: 26px; font-weight: 800; 
         color: #FFFFFF !important; pointer-events: none; 
     }
-    /* Sidebar - ตัวหนังสือสีดำ */
+    /* Sidebar - ตัวหนังสือสีดำเข้ม */
     [data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
     [data-testid="stSidebar"] * { color: #000000 !important; }
     .ip-box { 
@@ -90,26 +87,26 @@ with st.sidebar:
     
     st.header("🔢 Maths Studio")
     
-    # แสดงข้อมูล IP และจำนวนคนออนไลน์
     st.markdown(f"""
     <div class="ip-box">
-        <small>🌐 IP Address:</small><br><b>{user_ip}</b><br>
-        <small>👥 ออนไลน์ขณะนี้: <b>{global_tracker.active_count} คน</b></small>
+        <small>🌐 IP ของคุณ:</small><br><b>{user_ip}</b><br>
+        <small>👥 ออนไลน์อยู่: <b>{global_tracker.active_count} คน</b></small>
     </div>
     """, unsafe_allow_html=True)
 
     grid_choice = st.radio("เลือกขนาดตาราง:",["2x2 (Basic)", "3x3 (Standard)", "4x4 (Advanced)", "5x5 (Expert)"], index=0)
     st.markdown("---")
-    st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพหุนาม (เช่น x, 2x^2) ลงในช่องสีขาว ผลลัพธ์จะคำนวณและจัดกลุ่มให้อัตโนมัติ")
+    st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพหุนามลงในช่องสีขาว ผลลัพธ์จะคำนวณอัตโนมัติ")
 
 # ==========================================
-# 3. กำหนดขนาดและเส้น (ใช้ Logic เส้นที่คุณต้องการ)
+# 3. กำหนดขนาดและเส้น (แก้ไขให้เป็นเส้นตัดตามรูป)
 # ==========================================
 size = int(grid_choice.split("x")[0])
 
-# วาดเส้นโดยใช้ range(size + 1) เพื่อให้ปิดกรอบตารางได้ครบ
-vlines = "".join([f'<div class="line vline" style="left: {80 + (i * 100)}px;"></div>' for i in range(size + 1)])
-hlines = "".join([f'<div class="line hline" style="top: {80 + (i * 100)}px;"></div>' for i in range(size + 1)])
+# เส้นแนวตั้ง: วาดเฉพาะเส้นคั่นระหว่างคอลัมน์ (size เส้น)
+vlines = "".join([f'<div class="line vline" style="left: {80 + (i * 100)}px;"></div>' for i in range(size)])
+# เส้นแนวนอน: วาดเฉพาะเส้นคั่นระหว่างแถว (size เส้น)
+hlines = "".join([f'<div class="line hline" style="top: {80 + (i * 100)}px;"></div>' for i in range(size)])
 
 top_inputs = "".join([f'<div class="input-cell"><input id="top{i}" class="gamebox" placeholder="T{i+1}" autocomplete="off"></div>' for i in range(size)])
 
@@ -120,7 +117,7 @@ for j in range(size - 1, -1, -1):
         left_and_results += f'<div class="result-cell" id="res_{j}_{i}"></div>'
 
 # ==========================================
-# 4. โค้ด HTML/JS
+# 4. HTML/JS
 # ==========================================
 html_code = f"""
 <!DOCTYPE html>
@@ -128,25 +125,28 @@ html_code = f"""
 <head>
     <style>
         body {{ font-family: 'Sarabun', sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 30px; background: transparent; }}
-        .app-container {{ background: #ffffff; padding: 50px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.08); position: relative; display: inline-block; }}
+        .app-container {{ background: #ffffff; padding: 50px; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.06); position: relative; display: inline-block; }}
         .grid-wrapper {{ display: grid; grid-template-columns: 80px repeat({size}, 100px); grid-template-rows: 80px repeat({size}, 100px); position: relative; z-index: 2; }}
+        
         .input-cell {{ display: flex; justify-content: center; align-items: center; }}
-        input.gamebox {{ width: 55px; height: 38px; text-align: center; border: 2px solid #dee2e6; border-radius: 8px; font-weight: 600; outline: none; }}
+        input.gamebox {{ width: 55px; height: 38px; text-align: center; border: 1px solid #ced4da; border-radius: 8px; font-weight: 600; outline: none; }}
         .result-cell {{ display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: 700; color: #dc3545; font-family: 'Roboto Mono', monospace; }}
         
-        /* ระบบเส้นที่คุณเลือก */
+        /* ระบบเส้นแบบตัดกัน (Cross) */
         .lines-container {{ position: absolute; top: 50px; left: 50px; right: 50px; bottom: 50px; pointer-events: none; z-index: 1; }}
         .line {{ position: absolute; background-color: #000; }}
-        .vline {{ width: 2px; top: 0; bottom: 0; }}
-        .hline {{ height: 2px; left: 0; right: 0; }}
+        .vline {{ width: 2px; height: 100%; }}
+        .hline {{ height: 2px; width: 100%; }}
         
-        #finalResultBox {{ margin-top: 80px; padding: 20px 50px; background: linear-gradient(135deg, #0d6efd, #0056b3); color: white; border-radius: 100px; font-size: 26px; font-weight: 600; display: none; text-align: center; }}
+        #finalResultBox {{ margin-top: 60px; padding: 15px 40px; background: linear-gradient(135deg, #0d6efd, #0056b3); color: white; border-radius: 100px; font-size: 24px; font-weight: 600; display: none; text-align: center; }}
         sup {{ font-size: 0.65em; vertical-align: super; }}
     </style>
 </head>
 <body>
     <div class="app-container">
+        <!-- เลเยอร์เส้น -->
         <div class="lines-container">{vlines}{hlines}</div>
+        <!-- เลเยอร์เนื้อหา -->
         <div class="grid-wrapper"><div></div>{top_inputs}{left_and_results}</div>
     </div>
     <div id="finalResultBox"></div>
@@ -178,7 +178,6 @@ html_code = f"""
 """
 components.html(html_code, height=900)
 
-# แสดงเวลาปัจจุบันด้านล่าง
+# แสดงเวลาด้านล่าง
 bangkok_now = datetime.datetime.now(ZoneInfo("Asia/Bangkok"))
-time_str = bangkok_now.strftime('%d/%m/%Y %H:%M:%S')
-st.markdown(f"<p style='text-align: center; color: gray; margin-top: 20px;'>เข้าใช้งานล่าสุดเมื่อ: {time_str}</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: gray;'>เวลาที่เข้าใช้งาน (TH): {bangkok_now.strftime('%d/%m/%Y %H:%M:%S')}</p>", unsafe_allow_html=True)
