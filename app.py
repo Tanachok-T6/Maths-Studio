@@ -81,7 +81,7 @@ st.markdown("""
         text-align: center; border: 1px solid #ddd; margin-bottom: 10px;
     }
 </style>
-<div class="school-title">🏫 โรงเรียนเทศบาล 6 นครเชียงราย</div>
+<div class="school-title">CRMS6</div>
 """, unsafe_allow_html=True)
 
 with st.sidebar:
