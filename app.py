@@ -29,7 +29,6 @@ def get_global_tracker():
 
 def get_user_ip():
     try:
-        # พยายามดึงจาก Header (Streamlit Cloud)
         headers = st.context.headers
         if "X-Forwarded-For" in headers:
             return headers["X-Forwarded-For"].split(",")[0]
@@ -43,7 +42,6 @@ class SessionMonitor:
         self.ip = ip
         self.start_time = datetime.datetime.now(ZoneInfo("Asia/Bangkok")).strftime('%H:%M:%S')
         count = self.tracker.increment()
-        # แจ้ง Log ที่ Terminal Server
         print(f"🟢 [ENTRY] IP: {self.ip} | เวลา: {self.start_time} | ออนไลน์: {count}")
 
     def __del__(self):
@@ -73,9 +71,16 @@ st.markdown("""
     /* Sidebar - ตัวหนังสือสีดำเข้ม */
     [data-testid="stSidebar"] { background-color: #ffffff !important; border-right: 1px solid #e0e0e0; }
     [data-testid="stSidebar"] * { color: #000000 !important; }
+    
+    /* กล่อง IP ปรับปรุงใหม่ */
     .ip-box { 
-        background-color: #f0f2f6; padding: 10px; border-radius: 10px; 
-        text-align: center; border: 1px solid #ddd; margin-bottom: 10px;
+        background-color: #f0f2f6; 
+        padding: 12px; 
+        border-radius: 12px; 
+        text-align: center; 
+        border: 1px solid #ddd; 
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     }
 </style>
 <div class="school-title">CRMS6</div>
@@ -87,10 +92,15 @@ with st.sidebar:
     
     st.header("🔢 Maths Studio")
     
+    # แก้ไขส่วน IP ของคุณให้เป็นแนวนอน
     st.markdown(f"""
     <div class="ip-box">
-        <small>🌐 IP ของคุณ:</small><br><b>{user_ip}</b><br>
-        <small>👥 ออนไลน์อยู่: <b>{global_tracker.active_count} คน</b></small>
+        <div style="font-size: 0.9rem; margin-bottom: 5px;">
+            🌐 IP ของคุณ: <b style="color: #0d6efd;">{user_ip}</b>
+        </div>
+        <div style="font-size: 0.85rem; color: #555; border-top: 1px solid #ddd; margin-top: 5px; padding-top: 5px;">
+            👥 ออนไลน์ขณะนี้: <b>{global_tracker.active_count} คน</b>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -99,13 +109,11 @@ with st.sidebar:
     st.info("💡 วิธีใช้: พิมพ์ตัวเลขหรือพหุนามลงในช่องสีขาว ผลลัพธ์จะคำนวณอัตโนมัติ")
 
 # ==========================================
-# 3. กำหนดขนาดและเส้น (แก้ไขให้เป็นเส้นตัดตามรูป)
+# 3. กำหนดขนาดและเส้น (Cross Style)
 # ==========================================
 size = int(grid_choice.split("x")[0])
 
-# เส้นแนวตั้ง: วาดเฉพาะเส้นคั่นระหว่างคอลัมน์ (size เส้น)
 vlines = "".join([f'<div class="line vline" style="left: {80 + (i * 100)}px;"></div>' for i in range(size)])
-# เส้นแนวนอน: วาดเฉพาะเส้นคั่นระหว่างแถว (size เส้น)
 hlines = "".join([f'<div class="line hline" style="top: {80 + (i * 100)}px;"></div>' for i in range(size)])
 
 top_inputs = "".join([f'<div class="input-cell"><input id="top{i}" class="gamebox" placeholder="T{i+1}" autocomplete="off"></div>' for i in range(size)])
@@ -132,7 +140,6 @@ html_code = f"""
         input.gamebox {{ width: 55px; height: 38px; text-align: center; border: 1px solid #ced4da; border-radius: 8px; font-weight: 600; outline: none; }}
         .result-cell {{ display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: 700; color: #dc3545; font-family: 'Roboto Mono', monospace; }}
         
-        /* ระบบเส้นแบบตัดกัน (Cross) */
         .lines-container {{ position: absolute; top: 50px; left: 50px; right: 50px; bottom: 50px; pointer-events: none; z-index: 1; }}
         .line {{ position: absolute; background-color: #000; }}
         .vline {{ width: 2px; height: 100%; }}
@@ -144,9 +151,7 @@ html_code = f"""
 </head>
 <body>
     <div class="app-container">
-        <!-- เลเยอร์เส้น -->
         <div class="lines-container">{vlines}{hlines}</div>
-        <!-- เลเยอร์เนื้อหา -->
         <div class="grid-wrapper"><div></div>{top_inputs}{left_and_results}</div>
     </div>
     <div id="finalResultBox"></div>
@@ -178,6 +183,5 @@ html_code = f"""
 """
 components.html(html_code, height=900)
 
-# แสดงเวลาด้านล่าง
 bangkok_now = datetime.datetime.now(ZoneInfo("Asia/Bangkok"))
 st.markdown(f"<p style='text-align: center; color: gray;'>เวลาที่เข้าใช้งาน (TH): {bangkok_now.strftime('%d/%m/%Y %H:%M:%S')}</p>", unsafe_allow_html=True)
